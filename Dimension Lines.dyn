@@ -1,0 +1,288 @@
+{
+  "Uuid": "bf024465-8131-4b52-91a3-3eb3f9826ac7",
+  "IsCustomNode": false,
+  "Description": "",
+  "Name": "Dimension Lines",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "Dynamo.Nodes.DSModelElementsSelection, DSRevitNodesUI",
+      "NodeType": "ExtensionNode",
+      "InstanceId": [
+        "fc1c5d2d-5e2f-43b2-934d-dbe4d334f18b-0025f41c",
+        "fc1c5d2d-5e2f-43b2-934d-dbe4d334f18b-0025f439",
+        "fc1c5d2d-5e2f-43b2-934d-dbe4d334f18b-0025f488",
+        "fc1c5d2d-5e2f-43b2-934d-dbe4d334f18b-0025f4c1"
+      ],
+      "Id": "e730699e103b4e9480a69702556fcdee",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "c31ae3ec3ef349b784f1586a2bcebee6",
+          "Name": "Elements",
+          "Description": "The selected elements.",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Select multiple elements from the Revit document."
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "import clr\r\n\r\n# Import RevitServices & Revit API\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"RevitAPI\")\r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import *\r\n\r\n# Current Revit Document\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\n\r\n# Handle single or multiple inputs from Dynamo\r\ninput_elements = IN[0]\r\nif not isinstance(input_elements, list):\r\n    input_elements = [input_elements]  # Wrap single input in a list\r\n\r\n# Unwrap elements properly\r\ndetail_curves = [UnwrapElement(x) for x in input_elements]\r\n\r\n# List to store created dimensions\r\ncreated_dimensions = []\r\n\r\n# Start Transaction\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\n\r\nfor dc in detail_curves:\r\n    # Ensure the selected element is a DetailCurve\r\n    if isinstance(dc, DetailCurve):\r\n        \r\n        # Get the curve geometry of the DetailCurve\r\n        curve = dc.GeometryCurve\r\n        \r\n        # Get references for both endpoints of the curve\r\n        ref_start = curve.GetEndPointReference(0)  # Start point reference\r\n        ref_end = curve.GetEndPointReference(1)    # End point reference\r\n        \r\n        # Validate that both references are available\r\n        if ref_start and ref_end:\r\n            ref_array = ReferenceArray()\r\n            ref_array.Append(ref_start)\r\n            ref_array.Append(ref_end)\r\n            \r\n            # Create an offset vector\r\n            offset_vector = XYZ(3, 3, 0)  # Adjust offset direction and magnitude\r\n            \r\n            # Offset the line's start and end points\r\n            offset_start = curve.GetEndPoint(0).Add(offset_vector)\r\n            offset_end = curve.GetEndPoint(1).Add(offset_vector)\r\n            \r\n            # Create a new dimension line\r\n            dimension_line = Line.CreateBound(offset_start, offset_end)\r\n            \r\n            try:\r\n                # Try creating the dimension\r\n                new_dim = doc.Create.NewDimension(doc.ActiveView, dimension_line, ref_array)\r\n                created_dimensions.append(new_dim)\r\n            except Exception as e:\r\n                # Handle errors (e.g., if editing a group and it fails)\r\n                created_dimensions.append(f\"Error: {e}\")\r\n\r\nTransactionManager.Instance.TransactionTaskDone()\r\n\r\n# Output the created dimensions to Dynamo\r\nOUT = created_dimensions\r\n",
+      "Engine": "CPython3",
+      "EngineName": "CPython3",
+      "VariableInputPorts": true,
+      "Id": "e4865c350a324b92a29e85713ab9c944",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "4365263c906c4806a56533f828ed5788",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "32eab05335594c80ab7b85241656e042",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.CodeBlockNodeModel, DynamoCore",
+      "Id": "676a7a7933a2451586c21f381aa55436",
+      "NodeType": "CodeBlockNode",
+      "Inputs": [],
+      "Outputs": [],
+      "Replication": "Disabled",
+      "Description": "Allows for DesignScript code to be authored directly",
+      "Code": "// Dimension Lines v0.1\n// by Justin Martinez\n// 2025-01-26\n\n// Draw detail lines,\n// Group those detail lines and go inside group.\n// Click \"Select\" and drag selection box around these lines.\n// Script will add dimension lines on selected detail lines OUTSIDE the group.\n// See the Script output. Script will list sum dimension line lengths by line type.\n// Exit group editing to see dimensions.\n\n// Optional: Go back inside group, click \"Add\" and click those\n// individual dimension lines to add them to the group."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Watch, CoreNodeModels",
+      "WatchWidth": 200.0,
+      "WatchHeight": 200.0,
+      "Id": "578bfa1aee40430890685972fc133f85",
+      "NodeType": "ExtensionNode",
+      "Inputs": [
+        {
+          "Id": "9c5a4850c1eb4c42918c40ce95d77da8",
+          "Name": "",
+          "Description": "Node to show output from",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "4fd3e0d46e194f9eab40e2f3dc23611f",
+          "Name": "",
+          "Description": "Node output",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Visualizes a node's output"
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "import clr\r\n\r\n# Import RevitServices & Revit API\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"RevitAPI\")\r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import *\r\n\r\n# Current Revit Document\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\n\r\n# Handle single or multiple inputs from Dynamo\r\ninput_elements = IN[0]\r\nif not isinstance(input_elements, list):\r\n    input_elements = [input_elements]  # Wrap single input in a list\r\n\r\n# Unwrap elements properly\r\ndetail_curves = [UnwrapElement(x) for x in input_elements]\r\n\r\n# List to store created dimensions\r\ncreated_dimensions = []\r\n\r\n# Dictionary to store line type and total length\r\nline_type_lengths = {}\r\n\r\n# Start Transaction\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\n\r\nfor dc in detail_curves:\r\n    # Ensure the selected element is a DetailCurve\r\n    if isinstance(dc, DetailCurve):\r\n        # Get the curve geometry of the DetailCurve\r\n        curve = dc.GeometryCurve\r\n        \r\n        # Get the line style (type) of the curve\r\n        line_type = dc.LineStyle.Name\r\n        \r\n        # Get references for both endpoints of the curve\r\n        ref_start = curve.GetEndPointReference(0)  # Start point reference\r\n        ref_end = curve.GetEndPointReference(1)    # End point reference\r\n        \r\n        # Validate that both references are available\r\n        if ref_start and ref_end:\r\n            ref_array = ReferenceArray()\r\n            ref_array.Append(ref_start)\r\n            ref_array.Append(ref_end)\r\n            \r\n            # Create an offset vector\r\n            offset_vector = XYZ(2, 2, 0)  # Adjust offset direction and magnitude\r\n            \r\n            # Offset the line's start and end points\r\n            offset_start = curve.GetEndPoint(0).Add(offset_vector)\r\n            offset_end = curve.GetEndPoint(1).Add(offset_vector)\r\n            \r\n            # Create a new dimension line\r\n            dimension_line = Line.CreateBound(offset_start, offset_end)\r\n            \r\n            try:\r\n                # Try creating the dimension\r\n                new_dim = doc.Create.NewDimension(doc.ActiveView, dimension_line, ref_array)\r\n                created_dimensions.append(new_dim)\r\n                \r\n                # Add the curve length to the total for its line type\r\n                if line_type not in line_type_lengths:\r\n                    line_type_lengths[line_type] = 0\r\n                line_type_lengths[line_type] += curve.Length\r\n            \r\n            except Exception as e:\r\n                # Handle errors (e.g., if editing a group and it fails)\r\n                created_dimensions.append(f\"Error: {e}\")\r\n\r\nTransactionManager.Instance.TransactionTaskDone()\r\n\r\n# Output the created dimensions and line type lengths to Dynamo\r\nOUT = (created_dimensions, line_type_lengths)\r\n",
+      "Engine": "CPython3",
+      "EngineName": "CPython3",
+      "VariableInputPorts": true,
+      "Id": "0d556f3e26314de1b5661c34af342459",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "c59512a157e94ebb8c2b1eb14915bcae",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "b67fdb0144064988b41157d492009328",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "c31ae3ec3ef349b784f1586a2bcebee6",
+      "End": "c59512a157e94ebb8c2b1eb14915bcae",
+      "Id": "ec4fb60029f945429629bc55134d317d",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "32eab05335594c80ab7b85241656e042",
+      "End": "9c5a4850c1eb4c42918c40ce95d77da8",
+      "Id": "d375389738cf44c5b3332bed227ee27a",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.19",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.1",
+      "Data": {}
+    }
+  ],
+  "Author": "",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.19.3.6394",
+      "RunType": "Manual",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "e730699e103b4e9480a69702556fcdee",
+        "Name": "Select Model Elements",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": -257.4414194163403,
+        "Y": 984.18839983806311
+      },
+      {
+        "Id": "e4865c350a324b92a29e85713ab9c944",
+        "Name": "Draw Dimension Lines",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": true,
+        "ShowGeometry": true,
+        "X": 938.17186082552973,
+        "Y": 775.80962953734274
+      },
+      {
+        "Id": "676a7a7933a2451586c21f381aa55436",
+        "Name": "Code Block",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": -264.240077371221,
+        "Y": 608.23664968041044
+      },
+      {
+        "Id": "578bfa1aee40430890685972fc133f85",
+        "Name": "Watch",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 1282.4546049120468,
+        "Y": 774.73454793136329
+      },
+      {
+        "Id": "0d556f3e26314de1b5661c34af342459",
+        "Name": "Draw and Total Dimension Lines",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 52.893441837848854,
+        "Y": 985.38819390270874
+      }
+    ],
+    "Annotations": [
+      {
+        "Id": "d00a36b40ac745628e0fb28356a84d20",
+        "Title": "Archive",
+        "DescriptionText": "Description <Double click here to edit group description>",
+        "IsExpanded": true,
+        "WidthAdjustment": 0.0,
+        "HeightAdjustment": 0.0,
+        "Nodes": [
+          "e4865c350a324b92a29e85713ab9c944",
+          "578bfa1aee40430890685972fc133f85"
+        ],
+        "HasNestedGroups": false,
+        "Left": 928.17186082552973,
+        "Top": 701.73454793136329,
+        "Width": 641.282744086517,
+        "Height": 371.0,
+        "FontSize": 36.0,
+        "GroupStyleId": "00000000-0000-0000-0000-000000000000",
+        "InitialTop": 774.73454793136329,
+        "InitialHeight": 328.00000000000011,
+        "TextblockHeight": 63.0,
+        "Background": "#FFC1D676"
+      }
+    ],
+    "X": 438.9826520164728,
+    "Y": -344.34688022388423,
+    "Zoom": 0.67336001121697109
+  }
+}
